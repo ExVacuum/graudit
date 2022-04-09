@@ -70,6 +70,8 @@ OPTIONS
   -b colour blind friendly template
   -z supress colors
   -Z high contrast colors
+
+  -n file containing patterns to exclude
   
   -l lists databases available
   -v prints version number
@@ -102,7 +104,7 @@ listdb () {
     fi
 }
 
-while getopts "AbBhvilLzZd:c:x:" opt; do
+while getopts "AbBhvilLzZd:n:c:x:" opt; do
     case $opt in
         B)
             hidebanner=1
@@ -135,6 +137,10 @@ while getopts "AbBhvilLzZd:c:x:" opt; do
         ;;
         d)
             sigdb="$OPTARG"
+        ;;
+        n)
+            ignorecase="-v -f"
+            ignoredb="$OPTARG"
         ;;
         i)
             icase="-i"
@@ -183,6 +189,14 @@ else
     database="$sigdb"
 fi
 
+#Ignoredb location
+if [ ! -z "$ignorecase" ]; then
+    if [ "$ignoredb" == '-' ]; then
+        ignoredatabase='/dev/stdin'
+    else
+        ignoredatabase="$ignoredb"
+    fi
+fi
 
 if [ -z "$1" ]; then
     usage
@@ -193,6 +207,13 @@ if [ ! -e $database ]; then
     banner
     echo
     echo "database path not found for db: \"$database\", try running graudit -h" >&2
+    exit 2
+fi
+
+if [[ ! -z $ignoredatabase &&  ! -e $ignoredatabase ]]; then
+    banner
+    echo
+    echo "exclusion pattern file path not found for: \"$ignoredatabase\", try running graudit -h" >&2
     exit 2
 fi
 
@@ -207,10 +228,13 @@ $BINFILE --color=$color \
          --exclude-dir=.svn \
          --exclude-dir=CVS \
          --exclude-dir=.git \
+         -n -R -H -E \
          $excludefiles \
          $icase $ignorepattern \
-         -n -R -H -C "$context" -E \
-         -f "$database" $@ | \
+         $ignorecase "$ignoredatabase" $@ | \
+$BINFILE --color=$color \
+         -C "$context" -E \
+         -f "$database" | \
 sed -e"s/$(printf '\r')//g" -e"s/^\(\x1b\[.*m\x1b\[K\)--\(\x1b\[.*\x1b\[K\)$/\1##############################################\2/" -e"s/^--$/$separator/" | \
 sed -e"$vimlines" -e"$zimlines"
 SUCCESS=$?
